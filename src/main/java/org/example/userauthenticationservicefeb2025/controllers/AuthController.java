@@ -1,12 +1,16 @@
 package org.example.userauthenticationservicefeb2025.controllers;
 
-import org.example.userauthenticationservicefeb2025.dtos.LoginRequestDto;
-import org.example.userauthenticationservicefeb2025.dtos.LogoutRequestDto;
-import org.example.userauthenticationservicefeb2025.dtos.SignupRequestDto;
-import org.example.userauthenticationservicefeb2025.dtos.UserDto;
+import com.mysql.cj.exceptions.PasswordExpiredException;
+import org.antlr.v4.runtime.misc.Pair;
+import org.example.userauthenticationservicefeb2025.dtos.*;
+import org.example.userauthenticationservicefeb2025.exceptions.UserNotFoundException;
 import org.example.userauthenticationservicefeb2025.models.User;
 import org.example.userauthenticationservicefeb2025.services.IAuthService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -26,15 +30,35 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public UserDto login(@RequestBody LoginRequestDto loginRequestDto) {
-      User user = authService.login(loginRequestDto.getEmailId(),loginRequestDto.getPassword());
-      return from(user);
+    public ResponseEntity<UserDto> login(@RequestBody LoginRequestDto loginRequestDto) {
+        try {
+            Pair<User, String> userWithToken = authService.login(loginRequestDto.getEmailId(), loginRequestDto.getPassword());
+            UserDto userDto =  from(userWithToken.a);
+            MultiValueMap<String,String> headers = new LinkedMultiValueMap<>();
+            headers.add(HttpHeaders.SET_COOKIE,userWithToken.b);
+            return new ResponseEntity<>(userDto,headers,201);
+        }catch (UserNotFoundException exception) {
+            return new ResponseEntity<>(null,null,404);
+        }catch (PasswordExpiredException exception) {
+            return new ResponseEntity<>(null,null,401);
+        }
     }
 
     @PostMapping("/logout")
     public Boolean logout(@RequestBody LogoutRequestDto logoutRequestDto) {
       //ToDo -: To be implemented by Learners
       return false;
+    }
+
+
+    @PostMapping("/validateToken")
+    public ResponseEntity<Boolean> validateToken(@RequestBody ValidateTokenDto validateTokenDto) {
+      try {
+          Boolean result = authService.validateToken(validateTokenDto.getToken(), validateTokenDto.getUserId());
+          return new ResponseEntity<>(result,null,200);
+      }catch (Exception exception) {
+         return new ResponseEntity<>(false,null,400);
+      }
     }
 
     private UserDto from(User user) {
