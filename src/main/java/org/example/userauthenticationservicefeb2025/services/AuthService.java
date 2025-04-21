@@ -1,10 +1,14 @@
 package org.example.userauthenticationservicefeb2025.services;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtParser;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.MacAlgorithm;
 import org.antlr.v4.runtime.misc.Pair;
+import org.example.userauthenticationservicefeb2025.clients.KafkaProducerClient;
+import org.example.userauthenticationservicefeb2025.dtos.EmailDto;
 import org.example.userauthenticationservicefeb2025.exceptions.IncorrectPasswordException;
 import org.example.userauthenticationservicefeb2025.exceptions.UserAlreadyExistException;
 import org.example.userauthenticationservicefeb2025.exceptions.UserNotFoundException;
@@ -32,6 +36,12 @@ public class AuthService implements IAuthService {
     @Autowired
     private SecretKey secretKey;
 
+    @Autowired
+    private KafkaProducerClient kafkaProducerClient;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
     @Override
     public User signup(String email, String password) {
         Optional<User> userOptional = userRepo.findUserByEmailId(email);
@@ -42,6 +52,20 @@ public class AuthService implements IAuthService {
         User user = new User();
         user.setEmailId(email);
         user.setPassword(bCryptPasswordEncoder.encode(password));
+
+        //Sending welcome email
+        EmailDto emailDto = new EmailDto();
+        emailDto.setTo(user.getEmailId());
+        emailDto.setFrom("anuragbatch@gmail.com");
+        emailDto.setBody("Thanks for signing. Have a great shopping experience.");
+        emailDto.setSubject("Welcome to Scaler");
+
+        try {
+            kafkaProducerClient.sendMessage("signup", objectMapper.writeValueAsString(emailDto));
+        }catch(JsonProcessingException ex) {
+            throw new RuntimeException(ex.getMessage());
+        }
+
         return userRepo.save(user);
     }
 
@@ -116,3 +140,7 @@ public class AuthService implements IAuthService {
 //   the token which i have received , whether it's matching with any token which is stored in DB
 //   check for expiry by parsing token and getting payload
 
+
+//emailService
+//
+//to , from , subject , body
